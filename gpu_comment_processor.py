@@ -15,17 +15,21 @@ repeat_letters = re.compile(r'(.)\1{3,}')       # 4+ repeated letters
 repeat_words = re.compile(r'\b(\w+)\s+\1\b')    # repeated word (e.g., "good good")
 repeat_sentences = re.compile(r'(.+?)\.\s+\1\.')  # repeated sentence (e.g., "nice. nice.")
 
-# Define spam keywords and phrases
-spam_keywords = [
-    "subscribe", "promocode", "free money", "check my channel", "vs mention", "href",
-    "happy new year", "anyone here", "who is here", "2018", "br", "world population",
-    "8 billion", "views", "anyone", "still watching", "song", "red_heart", "love", "its",
-    "listening", "viewed", "billion", "world", "read", "reading", "reads", "population",
-    "bilion", "sex", "gay", "porn", "pornhub", "cancer", "hot girl", "brbr", "brbrbr",
-    "fuck", "shit", "4b", "3b", "1b", "2", "5b", "6b", "7b", "8b", "who39s", "channel",
-    "sub", "suscribe", "million", "milon", "subs", "dislikes", "disslike", "die", "kill",
-    "dead", "suicide", "birthday", "sexy"
-]
+def load_spam_keywords(keywords_file):
+    """Load spam keywords from a text file, one keyword per line."""
+    try:
+        with open(keywords_file, 'r') as f:
+            keywords = [line.strip().lower() for line in f if line.strip()]
+        print(f"[INFO] Loaded {len(keywords)} spam keywords from {keywords_file}")
+        return keywords
+    except FileNotFoundError:
+        print(f"[ERROR] Spam keywords file '{keywords_file}' not found!")
+        print("[WARNING] Using empty spam keywords list. No keyword-based filtering will be applied.")
+        return []
+    except Exception as e:
+        print(f"[ERROR] Failed to load spam keywords: {str(e)}")
+        print("[WARNING] Using empty spam keywords list. No keyword-based filtering will be applied.")
+        return []
 
 def setup_language_model(device):
     """Initialize the language detection model."""
@@ -101,7 +105,7 @@ def detect_languages_batch(texts, model, tokenizer, device, batch_size=32):
     
     return results
 
-def clean_text(text):
+def clean_text(text, spam_keywords):
     """Clean the text by removing spam content."""
     # Skip empty texts
     if not isinstance(text, str) or len(text.strip()) < 3:
@@ -117,7 +121,7 @@ def clean_text(text):
     
     return text
 
-def process_batch(args, model=None, tokenizer=None, device=None, lang_confidence=0.8):
+def process_batch(args, model=None, tokenizer=None, device=None, lang_confidence=0.8, spam_keywords=None):
     """Process a batch of comments by cleaning and language filtering."""
     batch, process_id = args
     
@@ -134,7 +138,7 @@ def process_batch(args, model=None, tokenizer=None, device=None, lang_confidence
     clean_indices = []
     
     for idx, row in batch.iterrows():
-        cleaned = clean_text(row["comment"])
+        cleaned = clean_text(row["comment"], spam_keywords)
         if cleaned is not None:
             cleaned_texts.append(cleaned)
             clean_indices.append(idx)
@@ -176,6 +180,7 @@ def main():
     parser.add_argument("--confidence", type=float, default=0.8, help="Language confidence threshold (0-1)")
     parser.add_argument("--use_gpu", action="store_true", help="Use GPU for language detection")
     parser.add_argument("--cpu_cores", type=int, default=None, help="Number of CPU cores to use (default: all)")
+    parser.add_argument("--keywords", default="spam_keywords.txt", help="File containing spam keywords, one per line")
     args = parser.parse_args()
     
     start_time = time.time()
@@ -185,6 +190,9 @@ def main():
     if not os.path.exists(args.input):
         print(f"[ERROR] Input file '{args.input}' not found!")
         return
+    
+    # Load spam keywords
+    spam_keywords = load_spam_keywords(args.keywords)
     
     # Check if CUDA is available when GPU is requested
     device = None
@@ -239,13 +247,16 @@ def main():
                 model=model,
                 tokenizer=tokenizer,
                 device=device,
-                lang_confidence=args.confidence
+                lang_confidence=args.confidence,
+                spam_keywords=spam_keywords
             )
             results.append(chunk_result)
     else:
         # For CPU-only processing, we use multiprocessing
         with multiprocessing.Pool(processes=num_cores) as pool:
-            process_func = partial(process_batch, lang_confidence=args.confidence)
+            process_func = partial(process_batch, 
+                                  lang_confidence=args.confidence, 
+                                  spam_keywords=spam_keywords)
             results = pool.map(process_func, batch_args)
     
     # Combine results

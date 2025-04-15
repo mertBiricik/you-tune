@@ -24,7 +24,7 @@ This project provides an efficient solution for processing large YouTube comment
 ## Usage
 
 ```bash
-python gpu_comment_processor.py --input comments.csv --output filtered_comments.csv --use_gpu
+python gpu_comment_processor.py --input comments.csv --output filtered_comments.csv --use_gpu --keywords spam.txt
 ```
 
 ### Command Line Options:
@@ -35,6 +35,7 @@ python gpu_comment_processor.py --input comments.csv --output filtered_comments.
 - `--confidence`: Language confidence threshold (default: 0.8)
 - `--use_gpu`: Enable GPU acceleration for language detection
 - `--cpu_cores`: Number of CPU cores to use (default: all available)
+- `--keywords`: File containing spam keywords, one per line (default: spam_keywords.txt)
 
 ## Requirements
 
@@ -49,6 +50,7 @@ python gpu_comment_processor.py --input comments.csv --output filtered_comments.
 
 - **Input:** Raw YouTube comments CSV file (`2018.csv`)
 - **Output:** Filtered English-only, spam-free comments (`full_processed_comments.csv`)
+- **Keywords:** Spam keywords file (`spam_keywords.txt`), one keyword per line
 
 ## Performance
 
