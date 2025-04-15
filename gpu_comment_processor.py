@@ -9,6 +9,10 @@ import numpy as np
 from tqdm import tqdm
 import argparse
 from functools import partial
+import warnings
+
+# Suppress specific pandas deprecation warning
+warnings.filterwarnings('ignore', category=FutureWarning, message='.*swapaxes.*')
 
 # Spam detection regex patterns
 repeat_letters = re.compile(r'(.)\1{3,}')       # 4+ repeated letters
