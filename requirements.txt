@@ -1,0 +1,24 @@
+# Core dependencies
+torch>=1.9.0
+transformers>=4.15.0
+pandas>=1.3.0
+numpy>=1.20.0
+matplotlib>=3.4.0
+seaborn>=0.11.0
+wordcloud>=1.8.0
+scikit-learn>=1.0.0
+tqdm>=4.62.0
+
+# Future dependencies (for planned features)
+google-api-python-client>=2.0.0  # YouTube API
+google-auth-oauthlib>=0.4.0      # YouTube API authentication
+yt-dlp>=2022.1.21                # YouTube download
+openai-whisper>=20230124         # Audio transcription
+tensorflow>=2.8.0                # Alternative for some ML tasks
+nltk>=3.6.0                      # Additional NLP functionality
+
+# Development dependencies
+pytest>=7.0.0
+black>=22.1.0
+isort>=5.10.0
+flake8>=4.0.0 

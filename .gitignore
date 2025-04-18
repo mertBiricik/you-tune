@@ -1,4 +1,5 @@
 *.bin
 *.pyc
 *.csv
-*.txt
+spam*.txt
+*.zip
