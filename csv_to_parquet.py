@@ -14,6 +14,7 @@ import pyarrow.parquet as pq
 from pathlib import Path
 from tqdm import tqdm
 import logging
+import numpy as np
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +79,87 @@ def find_csv_files(directory, extension):
                 csv_files.append(os.path.join(root, file))
     return csv_files
 
+def convert_mixed_types(df):
+    """
+    Handle mixed data types in DataFrame columns by converting appropriately.
+    Focuses especially on columns that might contain numeric values as strings.
+    """
+    # Copy the dataframe to avoid modifying the original
+    df_fixed = df.copy()
+    
+    # List of columns that might need conversion
+    numeric_columns = ['like_count', 'dislike_count', 'reply_count', 'view_count', 'subscriber_count']
+    timestamp_columns = ['published_at_unix', 'timestamp', 'unix_timestamp', 'created_at_unix']
+    boolean_columns = ['is_reply', 'is_spam', 'is_deleted', 'is_popular', 'is_approved', 'is_enabled']
+    
+    for col in df.columns:
+        # Handle boolean columns
+        if col in boolean_columns or any(bool_name in col.lower() for bool_name in ['is_', 'has_', '_flag', '_enabled']):
+            if df[col].dtype == 'object':  # If column is string/object type
+                try:
+                    # Convert to lowercase strings first
+                    df_fixed[col] = df_fixed[col].astype(str).str.lower()
+                    
+                    # Map common boolean string representations to actual booleans
+                    bool_map = {
+                        'true': True, 'yes': True, '1': True, 't': True, 'y': True,
+                        'false': False, 'no': False, '0': False, 'f': False, 'n': False
+                    }
+                    
+                    # Apply the mapping
+                    df_fixed[col] = df_fixed[col].map(bool_map)
+                    
+                    # Handle any values that didn't map (keep as strings)
+                    unmapped = df_fixed[col].isna() & ~df[col].isna()
+                    if unmapped.any():
+                        logger.debug(f"Some values in column '{col}' could not be mapped to boolean")
+                except Exception as e:
+                    logger.debug(f"Could not convert column '{col}' to boolean: {str(e)}")
+                    # Keep original values
+                    df_fixed[col] = df[col]
+        
+        # Handle timestamp columns
+        elif col in timestamp_columns or any(ts_name in col.lower() for ts_name in ['_unix', 'timestamp', 'epoch']):
+            if df[col].dtype == 'object':  # If column is string/object type
+                try:
+                    # Convert all values to strings first to ensure consistent handling
+                    df_fixed[col] = df_fixed[col].astype(str)
+                    
+                    # Try to detect if values contain decimal points
+                    sample = df_fixed[col].dropna().head(100).tolist()
+                    has_decimal = any('.' in str(val) for val in sample if str(val) != 'nan')
+                    
+                    # Attempt numeric conversion
+                    if has_decimal:
+                        # Keep as float if decimals are present
+                        df_fixed[col] = pd.to_numeric(df_fixed[col], errors='coerce')
+                        df_fixed[col] = df_fixed[col].fillna(0)
+                    else:
+                        # Try integer first, then string if that fails
+                        try:
+                            df_fixed[col] = pd.to_numeric(df_fixed[col], errors='coerce')
+                            df_fixed[col] = df_fixed[col].fillna(0)
+                        except:
+                            # Keep as string if conversion fails
+                            df_fixed[col] = df_fixed[col].astype(str)
+                except Exception as e:
+                    logger.debug(f"Could not convert timestamp column '{col}': {str(e)}")
+                    # Keep as string if all else fails
+                    df_fixed[col] = df_fixed[col].astype(str)
+        
+        # For known potentially numeric columns or any column with 'count' or 'id' in the name
+        elif col in numeric_columns or 'count' in col.lower() or '_id' in col.lower():
+            if df[col].dtype == 'object':  # If column is string/object type
+                try:
+                    # Try converting to numeric, coercing errors to NaN
+                    df_fixed[col] = pd.to_numeric(df_fixed[col], errors='coerce')
+                    # Replace NaN with 0 for numeric columns
+                    df_fixed[col] = df_fixed[col].fillna(0).astype('Int64')
+                except Exception as e:
+                    logger.debug(f"Could not convert column '{col}' to numeric: {str(e)}")
+    
+    return df_fixed
+
 def convert_csv_to_parquet(
     csv_path, 
     parquet_path, 
@@ -109,8 +191,13 @@ def convert_csv_to_parquet(
                     sep=delimiter,
                     encoding='utf-8',
                     on_bad_lines='warn',
-                    engine='c'
+                    engine='c',
+                    low_memory=False  # Prevents mixed type warnings
                 )
+                
+                # Handle mixed data types
+                df = convert_mixed_types(df)
+                
                 table = pa.Table.from_pandas(df)
                 pq.write_table(
                     table,
@@ -126,11 +213,13 @@ def convert_csv_to_parquet(
                     csv_path, 
                     sep=delimiter, 
                     chunksize=chunk_size, 
-                    low_memory=True, 
+                    low_memory=False,  # Prevents mixed type warnings
                     encoding='utf-8', 
                     on_bad_lines='warn',
                     engine='c'
                 ):
+                    # Handle mixed data types in each chunk
+                    chunk = convert_mixed_types(chunk)
                     all_data.append(chunk)
                     rows_processed += len(chunk)
                     pbar.update(len(chunk))
