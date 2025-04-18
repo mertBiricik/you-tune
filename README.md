@@ -375,4 +375,64 @@ subscribe to
 
 ## License
 
-[MIT License](LICENSE) 
+[MIT License](LICENSE)
+
+### Using You-Tune
+
+Basic usage:
+
+```bash
+python you-tune.py --input comments.csv --output analyzed_comments.csv
+```
+
+For easier usage, use the shell script:
+
+```bash
+./analyze_comments.sh -i comments.csv -o analyzed_comments.csv
+```
+
+With additional options:
+
+```bash
+# Use GPU acceleration and perform sentiment analysis
+./analyze_comments.sh -i comments.csv -g -s -v
+
+# Extract topics and generate visualizations
+./analyze_comments.sh -i comments.csv -t 15 -v
+
+# Focus on specific languages
+./analyze_comments.sh -i comments.csv -l en,es,fr -v
+```
+
+### CSV to Parquet Conversion
+
+You-Tune includes a powerful tool for converting CSV files to the more efficient Parquet format. This can significantly improve processing speed and reduce storage requirements for large datasets.
+
+Basic conversion:
+
+```bash
+# Convert all CSV files in a directory (and subdirectories)
+./analyze_comments.sh --csv-to-parquet data_dir --parquet-out converted_dir
+
+# Specify delimiter for non-standard CSV files
+./analyze_comments.sh --csv-to-parquet data_dir --csv-delimiter ";" 
+
+# Force overwrite of existing Parquet files
+./analyze_comments.sh --csv-to-parquet data_dir --overwrite-parquet
+
+# Specify different compression algorithm
+./analyze_comments.sh --csv-to-parquet data_dir --parquet-compression gzip
+```
+
+Direct usage of the conversion script:
+
+```bash
+python csv_to_parquet.py --input-dir data_dir --output-dir converted_dir
+```
+
+Benefits of Parquet format:
+- Column-oriented storage for faster queries
+- Efficient compression (typically 75-90% smaller than CSV)
+- Schema preservation and type safety
+- Support for complex nested data structures
+- Better performance for analytical queries 
